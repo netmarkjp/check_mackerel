@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+#coding: utf-8
+
+from optparse import OptionParser
+from sys import exit
+import urllib2
+
+
+try:
+        import json
+except ImportError:
+        import simplejson as json
+
+
+def parseOpts():
+    parser = OptionParser()
+    parser.add_option('--api_key')
+    parser.add_option('--endpoint', default='https://mackerel.io')
+    parser.add_option('--warn')
+    parser.add_option('--crit')
+    return parser.parse_args()
+
+
+def getJson(endpoint, api_key):
+    request = urllib2.Request('%s/api/v0/hosts.json' % endpoint)
+    request.add_header('X-Api-Key', api_key)
+
+    return json.load(urllib2.urlopen(request))
+
+
+def check(response):
+    retired_hosts = []
+    for host in response.get('hosts'):
+        if host.get('isRetired') == 'True':
+            retired_hosts.append(host.get('name'))
+    return retired_hosts
+
+
+def main():
+    opts, args = parseOpts()
+    if opts.api_key is None:
+        print "ERROR: api_key is required"
+        exit(3)
+    if opts.warn is None or opts.crit is None:
+        print "ERROR: warn, crit is required"
+        exit(3)
+
+    response = getJson(opts.endpoint, opts.api_key)
+    result = check(response)
+
+    if len(result) >= int(opts.crit):
+        print 'CRIT: %s retired' % (','.join(result))
+        exit(2)
+    if len(result) >= int(opts.warn):
+        print 'WARN: %s retired' % (','.join(result))
+        exit(1)
+    print "OK: all server(s) are NOT Retired"
+    exit(0)
+
+if __name__ == '__main__':
+    main()
